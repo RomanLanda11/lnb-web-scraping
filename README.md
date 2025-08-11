@@ -70,6 +70,8 @@ Para activar el ambiente virtual:
 ```shell
 poetry env activate
 ```
+Esto devolvera la ubicación del archivo .bat que activa el ambiente, se bede copiar y ejecutar en la terminal
+
 *NOTA:* En caso de que tengas un ambiente **Conda** activado anteriormente, deberas activar el ambiente **Poetry** de manera explicita:
 ```shell
 .venv\Scripts\activate
