@@ -1,4 +1,3 @@
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -8,9 +7,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import pandas as pd
-import re 
+import re
 import json
-import time 
+import time
 from tqdm import tqdm
 from src.utils.utils import DATA_PATHS
 from src.utils.utils import (
@@ -22,8 +21,6 @@ from src.utils.utils import (
     calcular_puntos_ultimo_cuarto,
     calcular_puntos_clutch,
 )
-
-# ===================== PROCESAMIENTO MASIVO DE PARTIDOS =====================
 
 def extraer_boxscore_y_pbp(partido_link):
     """Extrae boxscore y play-by-play de un partido dado su link."""
@@ -177,98 +174,94 @@ def extraer_boxscore_y_pbp(partido_link):
         if driver:
             driver.quit()
 
-################################ GENERACIÓN DE LA BASE ########################################
-# Nombre del archivo de texto que contiene el HTML
-file_name = DATA_PATHS["html_partidos_temporada"]
+if __name__ == "__main__":
+    # Nombre del archivo de texto que contiene el HTML
+    file_name = DATA_PATHS["html_partidos_temporada"]
 
-# Diccionario para almacenar los datos de los partidos
-match_data = {}
-try:
-    # 1. Leer el contenido del archivo .txt
-    with open(file_name, "r", encoding="utf-8") as f:
-        html_content = f.read()
+    # Diccionario para almacenar los datos de los partidos
+    match_data = {}
+    try:
+        # 1. Leer el contenido del archivo .txt
+        with open(file_name, "r", encoding="utf-8") as f:
+            html_content = f.read()
 
-    # 2. Crear un objeto BeautifulSoup para parsear el HTML
-    soup = BeautifulSoup(html_content, "html.parser")
-    
-    # 3. Buscar todas las filas de la tabla (<tr>)
-    filas_partidos = soup.find_all("tr", role="row")
-    
-    print(f"Extrayendo datos de {len(filas_partidos)} partidos...")
+        # 2. Crear un objeto BeautifulSoup para parsear el HTML
+        soup = BeautifulSoup(html_content, "html.parser")
+        
+        # 3. Buscar todas las filas de la tabla (<tr>)
+        filas_partidos = soup.find_all("tr", role="row")
+        
+        print(f"Extrayendo datos de {len(filas_partidos)} partidos...")
 
-    for fila in filas_partidos:
-        # Extraer los datos de las celdas (<td>) de cada fila
-        celdas = fila.find_all("td")
+        for fila in filas_partidos:
+            # Extraer los datos de las celdas (<td>) de cada fila
+            celdas = fila.find_all("td")
 
-        # Asegurarse de que la fila tiene la estructura esperada
-        if len(celdas) > 8:
-            # Extraer los datos por su índice de celda
-            fecha_hora = celdas[0].get_text(strip=True)[-17:]
-            nombre_local = celdas[1].get_text(strip=True)
-            puntos_local = celdas[3].get_text(strip=True)
-            puntos_visita = celdas[4].get_text(strip=True)
-            nombre_visita = celdas[6].get_text(strip=True)
-            
-            # El link está dentro de la celda en el índice 8 (anteriormente 9)
-            link_tag = celdas[8].find("a", href=True)
-            link_estadisticas = link_tag.get('href') if link_tag else None
-            
-            # Usar una combinación única como clave del diccionario
-            match_key = f"{nombre_local} vs {nombre_visita} ({fecha_hora})"
-            
-            # Guardar los datos en el diccionario
-            match_data[match_key] = {
-                "nombre_local": nombre_local,
-                "puntos_local": puntos_local,
-                "nombre_visita": nombre_visita,
-                "puntos_visita": puntos_visita,
-                "link_estadisticas": link_estadisticas
-            }
-    
-    print("\nDiccionario de datos de partidos creado.")
-    
-    # Mostrar el diccionario para su verificación
-    
-except FileNotFoundError:
-    print(f"Error: No se encontró el archivo '{file_name}'. Asegúrate de que el archivo existe en la ruta correcta.")
-except Exception as e:
-    print(f"Ocurrió un error al procesar el archivo: {e}")
+            # Asegurarse de que la fila tiene la estructura esperada
+            if len(celdas) > 8:
+                # Extraer los datos por su índice de celda
+                fecha_hora = celdas[0].get_text(strip=True)[-17:]
+                nombre_local = celdas[1].get_text(strip=True)
+                puntos_local = celdas[3].get_text(strip=True)
+                puntos_visita = celdas[4].get_text(strip=True)
+                nombre_visita = celdas[6].get_text(strip=True)
+                
+                # El link está dentro de la celda en el índice 8 (anteriormente 9)
+                link_tag = celdas[8].find("a", href=True)
+                link_estadisticas = link_tag.get('href') if link_tag else None
+                
+                # Usar una combinación única como clave del diccionario
+                match_key = f"{nombre_local} vs {nombre_visita} ({fecha_hora})"
+                
+                # Guardar los datos en el diccionario
+                match_data[match_key] = {
+                    "nombre_local": nombre_local,
+                    "puntos_local": puntos_local,
+                    "nombre_visita": nombre_visita,
+                    "puntos_visita": puntos_visita,
+                    "link_estadisticas": link_estadisticas
+                }
+        
+    except FileNotFoundError:
+        print(f"Error: No se encontró el archivo '{file_name}'. Asegúrate de que el archivo existe en la ruta correcta.")
+    except Exception as e:
+        print(f"Ocurrió un error al procesar el archivo: {e}")
 
-resultados = []
-llaves_partidos = list(match_data.keys())[:10]
-for partido_key in tqdm(llaves_partidos, desc="Procesando partidos"):
-    partido_link = match_data[partido_key]["link_estadisticas"]
-    df_box_scores, df_acciones_final = extraer_boxscore_y_pbp(partido_link)
-    if df_box_scores is None or df_acciones_final is None:
-        continue
-    player_to_team_map = pd.Series(df_box_scores.equipo.values, index=df_box_scores.NombreCompleto).to_dict()
-    df_sorted = df_acciones_final.iloc[::-1].reset_index(drop=True)
-    df_plus_minus = calcular_plus_minus_corregido(df_sorted.copy(), player_to_team_map)
-    df_posesiones_consumidas = calcular_posesiones(df_sorted.copy())
-    df_posesiones_consumidas.rename(columns={'posesiones': 'posesiones_consumidas'}, inplace=True)
-    df_posesiones_jugadas = contar_posesiones_jugadas_por_equipo(df_sorted.copy(), df_box_scores.copy(), player_to_team_map)
-    df_rebotes_disponibles = calcular_rebotes_disponibles(df_sorted.copy(), df_box_scores.copy(), player_to_team_map)
-    df_puntos_q4 = calcular_puntos_ultimo_cuarto(df_acciones_final.copy(), df_box_scores.copy())
-    df_puntos_clutch = calcular_puntos_clutch(df_acciones_final.copy(), df_box_scores.copy())
-    resultado_final = df_box_scores.copy()
-    lista_de_stats = [df_plus_minus, df_posesiones_consumidas, df_posesiones_jugadas, 
-                        df_rebotes_disponibles, df_puntos_q4, df_puntos_clutch]
-    for df_stat in lista_de_stats:
-        df_stat.rename(columns={'jugador': 'NombreCompleto'}, inplace=True)
-        resultado_final = pd.merge(resultado_final, df_stat, on='NombreCompleto', how='left')
-    cols_a_rellenar = ['plus_minus', 'posesiones_consumidas', 'posesiones_jugadas', 
-                        'rebote_of_disp', 'rebote_def_disp', 'puntos_q4_y_prorroga', 'puntos_clutch']
-    for col in cols_a_rellenar:
-        if col in resultado_final.columns:
-            resultado_final[col] = resultado_final[col].fillna(0).astype(int)
-    resultado_final = calcular_posesiones_individuales(resultado_final)
-    resultado_final['partido_key'] = partido_key
-    resultados.append(resultado_final)
+    resultados = []
+    llaves_partidos = list(match_data.keys())[:10]
+    for partido_key in tqdm(llaves_partidos, desc="Procesando partidos"):
+        partido_link = match_data[partido_key]["link_estadisticas"]
+        df_box_scores, df_acciones_final = extraer_boxscore_y_pbp(partido_link)
+        if df_box_scores is None or df_acciones_final is None:
+            continue
+        player_to_team_map = pd.Series(df_box_scores.equipo.values, index=df_box_scores.NombreCompleto).to_dict()
+        df_sorted = df_acciones_final.iloc[::-1].reset_index(drop=True)
+        df_plus_minus = calcular_plus_minus_corregido(df_sorted.copy(), player_to_team_map)
+        df_posesiones_consumidas = calcular_posesiones(df_sorted.copy())
+        df_posesiones_consumidas.rename(columns={'posesiones': 'posesiones_consumidas'}, inplace=True)
+        df_posesiones_jugadas = contar_posesiones_jugadas_por_equipo(df_sorted.copy(), df_box_scores.copy(), player_to_team_map)
+        df_rebotes_disponibles = calcular_rebotes_disponibles(df_sorted.copy(), df_box_scores.copy(), player_to_team_map)
+        df_puntos_q4 = calcular_puntos_ultimo_cuarto(df_acciones_final.copy(), df_box_scores.copy())
+        df_puntos_clutch = calcular_puntos_clutch(df_acciones_final.copy(), df_box_scores.copy())
+        resultado_final = df_box_scores.copy()
+        lista_de_stats = [df_plus_minus, df_posesiones_consumidas, df_posesiones_jugadas, 
+                            df_rebotes_disponibles, df_puntos_q4, df_puntos_clutch]
+        for df_stat in lista_de_stats:
+            df_stat.rename(columns={'jugador': 'NombreCompleto'}, inplace=True)
+            resultado_final = pd.merge(resultado_final, df_stat, on='NombreCompleto', how='left')
+        cols_a_rellenar = ['plus_minus', 'posesiones_consumidas', 'posesiones_jugadas', 
+                            'rebote_of_disp', 'rebote_def_disp', 'puntos_q4_y_prorroga', 'puntos_clutch']
+        for col in cols_a_rellenar:
+            if col in resultado_final.columns:
+                resultado_final[col] = resultado_final[col].fillna(0).astype(int)
+        resultado_final = calcular_posesiones_individuales(resultado_final)
+        resultado_final['partido_key'] = partido_key
+        resultados.append(resultado_final)
 
-# --- CONCATENAR TODOS LOS RESULTADOS ---
-if resultados:
-    df_resultado_final = pd.concat(resultados, ignore_index=True)
-    print("\nDemension de la base")
-    print(df_resultado_final.shape)
-else:
-    print("No se pudieron procesar partidos correctamente.")
+    # --- CONCATENAR TODOS LOS RESULTADOS ---
+    if resultados:
+        df_resultado_final = pd.concat(resultados, ignore_index=True)
+        print("\nDemension de la base")
+        print(df_resultado_final.shape)
+    else:
+        print("No se pudieron procesar partidos correctamente.")
